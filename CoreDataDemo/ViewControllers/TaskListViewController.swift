@@ -6,14 +6,12 @@
 //
 
 import UIKit
-import CoreData
 
 protocol TaskViewControllerDelegate {
     func reloadData()
 }
 
 class TaskListViewController: UITableViewController {
-    private let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     private let cellID = "task"
     private var taskList: [Task] = []
 
@@ -22,7 +20,7 @@ class TaskListViewController: UITableViewController {
         view.backgroundColor = .white
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: cellID)
         setupNavigationBar()
-        fetchData()
+        taskList = StorageManager.shared.fetchData()
     }
 
     private func setupNavigationBar() {
@@ -56,24 +54,33 @@ class TaskListViewController: UITableViewController {
         showAlert(with: "New Task", and: "What do you want to do?")
     }
     
-    private func fetchData() {
-        let fetchRequest = Task.fetchRequest()
-        
-        do {
-            taskList = try context.fetch(fetchRequest)
-        } catch let error {
-            print("Failed to fetch data", error)
-        }
-    }
-    
-    private func showAlert(with title: String, and message: String) {
+    // не нравится мне этот метод очень большой, как лучше разбить на 2 с минимальными отличиями
+    // или что-то можно вынести в отдельные методы
+    private func showAlert(with title: String, and message: String, isSaveAction: Bool = true, previousTask: String = "") {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        let saveAction = UIAlertAction(title: "Save", style: .default) { _ in
-            guard let task = alert.textFields?.first?.text, !task.isEmpty else { return }
-            self.save(task)
+        var leftButton: UIAlertAction
+        
+        if isSaveAction {
+            leftButton = UIAlertAction(title: "Save", style: .default) { _ in
+                guard let task = alert.textFields?.first?.text, !task.isEmpty else { return }
+                self.save(task)
+            }
+        } else {
+            leftButton = UIAlertAction(title: "Edit", style: .default) { _ in
+                guard let newTask = alert.textFields?.first?.text, !newTask.isEmpty else { return }
+                StorageManager.shared.edit(taskName: previousTask, newTask: newTask)
+                self.taskList.forEach { task in
+                    if task.title == previousTask {
+                        task.title = newTask
+                    }
+                }
+                self.tableView.reloadData()
+            }
         }
+        
         let cancelAction = UIAlertAction(title: "Cancel", style: .destructive)
-        alert.addAction(saveAction)
+        
+        alert.addAction(leftButton)
         alert.addAction(cancelAction)
         alert.addTextField { textField in
             textField.placeholder = "New Task"
@@ -82,21 +89,14 @@ class TaskListViewController: UITableViewController {
     }
     
     private func save(_ taskName: String) {
-        guard let entityDescription = NSEntityDescription.entity(forEntityName: "Task", in: context) else { return }
-        guard let task = NSManagedObject(entity: entityDescription, insertInto: context) as? Task else { return }
-        task.title = taskName
-        taskList.append(task)
+        var tasks = StorageManager.shared.save(taskName)
+        while tasks.isEmpty == false {
+            taskList.append(tasks.removeFirst())
+        }
         
         let cellIndex = IndexPath(row: taskList.count - 1, section: 0)
+        print(cellIndex.row)
         tableView.insertRows(at: [cellIndex], with: .automatic)
-        
-        if context.hasChanges {
-            do {
-                try context.save()
-            } catch let error {
-                print(error)
-            }
-        }
     }
 }
 
@@ -114,12 +114,20 @@ extension TaskListViewController {
         cell.contentConfiguration = content
         return cell
     }
+    
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard let previousTask = taskList[indexPath.row].title else { return}
+        showAlert(with: "Edit Task",
+                  and: "What do you want to do?",
+                  isSaveAction: false,
+                  previousTask: previousTask)
+    }
 }
 
 // MARK: - TaskViewControllerDelegate
 extension TaskListViewController: TaskViewControllerDelegate {
     func reloadData() {
-        fetchData()
+        taskList = StorageManager.shared.fetchData()
         tableView.reloadData()
     }
 }
