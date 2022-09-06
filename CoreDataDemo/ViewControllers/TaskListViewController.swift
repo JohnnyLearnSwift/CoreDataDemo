@@ -122,6 +122,19 @@ extension TaskListViewController {
                   isSaveAction: false,
                   previousTask: previousTask)
     }
+    
+    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
+        true
+    }
+    
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+          if editingStyle == .delete {
+              StorageManager.shared.remove(taskName: taskList[indexPath.row].title ?? "")
+              taskList.remove(at: indexPath.row)
+              tableView.deleteRows(at: [indexPath], with: .automatic)
+          }
+        }
+    
 }
 
 // MARK: - TaskViewControllerDelegate

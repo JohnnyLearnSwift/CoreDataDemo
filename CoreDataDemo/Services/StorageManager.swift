@@ -73,7 +73,23 @@ class StorageManager {
         do {
             try context.save()
         } catch let error {
-            print("Failed to fetch data", error)
+            print("Failed to edit data", error)
+        }
+    }
+    
+    func remove(taskName: String) {
+        let tasks = fetchData()
+        
+        tasks.forEach { task in
+            if task.title == taskName {
+                context.delete(task)
+            }
+        }
+
+        do {
+            try context.save()
+        } catch let error {
+            print("Failed to remove data", error)
         }
     }
     
